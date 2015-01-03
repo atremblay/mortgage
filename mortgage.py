@@ -1,5 +1,5 @@
 import sympy
-from sympy import Symbol, lambdify, simplify
+from sympy import Symbol, symbols, lambdify, simplify
 from enum import Enum
 
 class Modality(Enum):
@@ -17,33 +17,50 @@ class Mortgage(object):
         self.loan = loan
         self.modality = modality
 
-        self.payment, self.j = self.set_up()
-        self.k = Symbol('k', integer=True)
-        self._present_value = simplify(loan*(1+self.j)**self.k + self.payment*(1-(1+self.j)**self.k)/self.j)
-        self._accrued_interest = simplify(loan*((1+self.j)**self.k-1) + self.payment*(self.k-((1+self.j)**self.k - 1)/self.j))
-        self._accrued_capital = simplify(self.k * self.payment - self._accrued_interest)
+        self._i, self._m, self._j = symbols('i m j', real=True)
+        self._p = Symbol('payment', real=True)
+        self._k = Symbol('k', integer=True)
 
-    def set_up(self):
-        i = Symbol('i', float=True)
-        m = Symbol('m', integer=True)
-        expr = (1 + i/2.0)**(2.0/m) - 1
+        self._rate_conversion = (1 + self._i/2.0)**(2.0/self._m) - 1
+
+        self._present_value = loan*(1+self._j)**self._k
+        self._present_value += self._p*(1-(1+self._j)**self._k)/self._j
+
+        self._accrued_interest = loan*((1+self._j)**self._k-1)
+        self._accrued_interest += self._p*(self._k-((1+self._j)**self._k - 1)/self._j)
+
+        self._accrued_capital = self._k * self._p - self._accrued_interest
+
+    def payment(self):
         if self.modality == Modality.accelerated_weekly:
-            j = expr.subs({i:self._interest, m:12})
+            return self.loan / self.annuity()
+
+    def annuity(self):
+        if self.modality == Modality.accelerated_weekly:
+            j = self._rate_conversion.subs({self._i:self._interest, self._m:12})
             annuity = (1-(1 + j)**(-self.term * 12))/j
-            payment = self.loan / annuity / 4
-            return payment, expr.subs({i:self._interest, m:52})
+            return annuity * 4
 
     def interest(self, k):
-        expr = lambdify([self.k], self._present_value, "numpy")
-        return expr(k-1) * self.j
+        params = [self._k, self._j, self._p]
+        expr = lambdify(params, self._present_value, "numpy")
+        j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
+        p = self.payment()
+        return expr(k-1, j, p) * j
 
     def capital(self, k):
-        return self.payment - self.interest(k)
+        return self.payment() - self.interest(k)
 
     def accrued_interest(self, k):
-        expr = lambdify([self.k], self._accrued_interest, "numpy")
-        return expr(k)
+        params = [self._k, self._j, self._p]
+        expr = lambdify(params, self._accrued_interest, "numpy")
+        j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
+        p = self.payment()
+        return expr(k, j, p)
 
     def accrued_capital(self, k):
-        expr = lambdify([self.k], self._accrued_capital, "numpy")
-        return expr(k)
+        params = [self._k, self._j, self._p]
+        expr = lambdify(params, self._accrued_capital, "numpy")
+        j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
+        p = self.payment()
+        return expr(k, j, p)
