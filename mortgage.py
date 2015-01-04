@@ -65,16 +65,16 @@ class Mortgage(object):
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
         R = self.payment()
         pv = expr(k, j, R)
-        # if pv < 0:
-        #     return 0
+        if pv < 0:
+            return 0
         return pv
 
     def capital(self, k):
         p = self.payment()
         capital = p - self.interest(k)
         pv = self.present_value(k)
-        # if capital > pv:
-        #     return pv
+        if capital > pv:
+            return pv
         return p - self.interest(k)
 
     def accrued_interest(self, k):
@@ -116,7 +116,7 @@ class Mortgage(object):
         # interest = [self.interest(k) for k in range(self.term * modality)]
 
         table = np.array(table)
-        return table[table[:,0] > 0]
+        return table[:math.ceil(self.last_period()),:]
 
     def plot(self):
         table = self.table()
@@ -129,3 +129,12 @@ class Mortgage(object):
             aes(x='index',y='amount', color='variable')) +\
             geom_point(size=1) +\
             ggplot.geom_vline(aes(xintercept=self.equilibrium()), color='black')
+
+    def info(self):
+        info = dict()
+        info['Payment'] = self.payment()
+        info['Last Period'] = math.ceil(self.last_period())
+        info['Period when Capital > Interest'] = math.ceil(self.equilibrium())
+        info['Accrued capital'] = self.accrued_capital(self.last_period())
+        info['Accrued interest'] = self.accrued_interest(self.last_period())
+        return info
