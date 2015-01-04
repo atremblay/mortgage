@@ -42,6 +42,9 @@ class Mortgage(object):
         self._equilibrium = log(-self._R/(2*(self._j * loan - self._R)))/\
         log(1+self._j)
 
+        self._last_period = log(-self._R/(self._j * loan - self._R)) /\
+        log(1 + self._j)
+
     def payment(self):
         if self.modality == Modality.accelerated_weekly:
             return self.loan / self.annuity()
@@ -62,16 +65,16 @@ class Mortgage(object):
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
         R = self.payment()
         pv = expr(k, j, R)
-        if pv < 0:
-            return 0
+        # if pv < 0:
+        #     return 0
         return pv
 
     def capital(self, k):
         p = self.payment()
         capital = p - self.interest(k)
         pv = self.present_value(k)
-        if capital > pv:
-            return pv
+        # if capital > pv:
+        #     return pv
         return p - self.interest(k)
 
     def accrued_interest(self, k):
@@ -95,11 +98,20 @@ class Mortgage(object):
         R = self.payment()
         return expr(j, R) + 1
 
+    def last_period(self):
+        params = [self._j, self._R]
+        expr = lambdify(params, self._last_period, "math")
+        j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
+        R = self.payment()
+        return expr(j, R)
+
     def table(self):
         i = 0
         if self.modality == Modality.accelerated_weekly:
             modality = 52
-        table = [[self.present_value(k), self.capital(k), self.interest(k)] for k in range(self.term * modality)]
+        table = [[self.present_value(k),
+            self.capital(k),
+            self.interest(k)] for k in range(self.term * modality)]
         # capital = [self.capital(k) for k in range(self.term * modality)]
         # interest = [self.interest(k) for k in range(self.term * modality)]
 
@@ -115,4 +127,5 @@ class Mortgage(object):
             value_name='amount')
         return ggplot.ggplot(data,
             aes(x='index',y='amount', color='variable')) +\
-        geom_point(size=1) + ggplot.geom_vline(aes(xintercept=self._equilibrium()), color='black')
+            geom_point(size=1) +\
+            ggplot.geom_vline(aes(xintercept=self.equilibrium()), color='black')
