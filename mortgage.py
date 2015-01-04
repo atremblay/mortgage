@@ -23,26 +23,26 @@ class Mortgage(object):
         self.modality = modality
 
         self._i, self._m, self._j = symbols('i m j', real=True)
-        self._R = Symbol('R', real=True)
+        self._R, self._PV = symbols('R PV', real=True)
         self._k = Symbol('k', integer=True)
 
         self._rate_conversion = (1 + self._i/2.0)**(2.0/self._m) - 1
 
-        self._present_value = loan*(1+self._j)**self._k
+        self._present_value = self._PV*(1+self._j)**self._k
         self._present_value += self._R*(1-(1+self._j)**self._k)/self._j
         self._present_value = self._present_value
 
-        self._accrued_interest = loan*((1+self._j)**self._k-1)
+        self._accrued_interest = self._PV*((1+self._j)**self._k-1)
         self._accrued_interest += self._R*(self._k-((1+self._j)**self._k - 1)/self._j)
         self._accrued_interest = self._accrued_interest
 
         self._accrued_capital = self._k * self._R - self._accrued_interest
         self._accrued_capital = self._accrued_capital
 
-        self._equilibrium = log(-self._R/(2*(self._j * loan - self._R)))/\
+        self._equilibrium = log(-self._R/(2*(self._j * self._PV - self._R)))/\
         log(1+self._j)
 
-        self._last_period = log(-self._R/(self._j * loan - self._R)) /\
+        self._last_period = log(-self._R/(self._j * self._PV - self._R)) /\
         log(1 + self._j)
 
     def payment(self):
@@ -60,11 +60,12 @@ class Mortgage(object):
         return self.present_value(k-1) * j
 
     def present_value(self, k):
-        params = [self._k, self._j, self._R]
+        params = [self._k, self._j, self._R, self._PV]
         expr = lambdify(params, self._present_value, "numpy")
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
         R = self.payment()
-        pv = expr(k, j, R)
+        PV = self.loan
+        pv = expr(k, j, R, PV)
         if pv < 0:
             return 0
         return pv
@@ -78,11 +79,12 @@ class Mortgage(object):
         return p - self.interest(k)
 
     def accrued_interest(self, k):
-        params = [self._k, self._j, self._R]
+        params = [self._k, self._j, self._R, self._PV]
         expr = lambdify(params, self._accrued_interest, "numpy")
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
-        p = self.payment()
-        return expr(k, j, p)
+        R = self.payment()
+        PV = self.loan
+        return expr(k, j, R, PV)
 
     def accrued_capital(self, k):
         params = [self._k, self._j, self._R]
@@ -92,18 +94,20 @@ class Mortgage(object):
         return expr(k, j, p)
 
     def equilibrium(self):
-        params = [self._j, self._R]
+        params = [self._j, self._R, self._PV]
         expr = lambdify(params, self._equilibrium, "math")
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
         R = self.payment()
-        return expr(j, R) + 1
+        PV = self.loan
+        return expr(j, R, PV) + 1
 
     def last_period(self):
-        params = [self._j, self._R]
+        params = [self._j, self._R, self._PV]
         expr = lambdify(params, self._last_period, "math")
         j = self._rate_conversion.subs({self._i:self._interest, self._m:52})
         R = self.payment()
-        return expr(j, R)
+        PV = self.loan
+        return expr(j, R, PV)
 
     def table(self):
         i = 0
